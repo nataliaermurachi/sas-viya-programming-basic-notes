@@ -286,4 +286,159 @@ BUT you can use the CASLIB= session option in the CAS statement  to set the acti
 
 `cas mySession sesopts=(caslib=xmple);`
 
-Note: If you don't have an active CAS session, first submit the New CAS Session snippet.
+***Note***: If you don't have an active CAS session, first submit the New CAS Session snippet.
+
+***Load in-memory tables:***
+
+There are two sources of data files, that can be loaded to in-memory tables in a caslib:
+* **server-side files** - data files that are already included in a defined caslib
+* **client-side files** - files of any kind that are not mapped to the caslib that you can access through the SAS Compute Server: *database tables*, *SAS tables*, *text files* 
+
+**NOTE:** Sas can load client-side or server-side files directly to in-memory tables.
+
+> ***In memory tables*** - temporary copies of data files that can be processed in CAS:
+    * by default *Promote=No*, session scope
+
+> The ***LOAD*** statement in **PROC CASUTIL** is the best way to load files to in memory tables.
+
+```
+PROC CASUTIL;
+    LOAD DATA=sas-data-set
+    <CASOUT="target-table-name">
+    <OUTCASLIB="caslib">
+    <PROMOTE | REPLACE> <option(s)>;
+QUIT;
+```
+`DATA` - used for Base SAS tables
+
+`CASOUT` - names the in-memory table
+
+`OUTCASLIB` - names the caslib in which the table will be loaded
+
+`PROMOTE` - creates a global scope table
+
+`REPLACE` - overwrites data if the in-memory table already exists
+
+***Loading other Client-side Data Source Files***
+
+* *Microsoft Excel od comma-separated-values(CSV) files*
+```
+PROC CASUTIL;
+        LOAD FILE="filename.ext"
+        <CASOUT="target-table-name">
+        <OUTCASLIB="caslib">
+        <PROMOTE | REPLACE> <option(s)>;
+QUIT;
+```
+
+***Loading Server-Side Data Source Files***
+
+```
+PROC CASUTIL;
+        LOAD CASDATA="source-table-name"
+            <INCASLIB="caslib">
+            <OUTCASLIB="caslib">
+            <CASOUT="target-table-name">
+            <PROMOTE | REPLACE> <option(s)>;
+QUIT;
+```
+
+You can also use *DATA* step to customize data and load it to memory in the same step and direct the output to a caslib:
+*exemple*
+
+```
+data casuser.sales_import;
+    infile "&path/data/copy-to-casuser/sales.csv" dsd firstobs=2;
+    input Employee_ID  FirstName:  $12. 
+          LastName : $15. Salary 
+          JobTitle : $20. Country : $2. 
+          BirthDate : date9. HireDate : mmddyy10.;
+    YearsEmployed=yrdif(HireDate,today());
+    format BirthDate HireDate mmddyy10.;
+run;
+```
+`PROC IMPORT`- can read a specific worksheet from a xlsx file:
+
+```
+exemple:
+proc import datafile="&path/data/sales.xlsx" 
+            dbms=xlsx    
+            out=casuser.sales_AU replace;
+    sheet=Australia;
+run;
+```
+
+**NOTE:** *In both the DATA step example and the PROC IMPORT example, the code is processed on the Compute Server, but the output data is loaded to an in-memory table.*
+
+***Accessing Database Tables:***
+
+There are two ways: 
+1) Use *SAS/ACCESS library* to read database files
+    * you define a client-side conection
+    * data will be treated as *a clilent-side file*
+    * when data is loaded it first passes through the Compute Server 
+    * then second is loaded into memory
+ **NOTE:** This method is not the most efficient way to brong data into CAS
+
+2) Use a *caslib* that uses technology called ***data connectors***
+    * *data conectors* are suplied by SAS to connect to databases
+    * data is treated as *a server-side file*
+    * data can be loaded directly into memory
+    * some connectors do parallel loads, resulting in faster load time
+
+    ```
+    CASLIB caslib-name DATASOURCE=
+          (SRCTYPE="oracle",
+           PATH="oracleServiceName",
+           SCHEMA="oracleSchemaName",
+           UID="oracleUserID",
+           PWD="oraclePassword" <,...>);
+    ```
+
+    * `CASLIB` - specifies the caslib name
+    * `DATASOURCE` - specifies the source type, path, schema, userID and password:
+
+    ```
+    exemple establish connection to Oracle schema:
+        caslib oracas datasource=
+        (srctype="oracle",
+        path="orcl",
+        schema="sales",
+        uid="student",
+        pwd=XXXXXXXXXXX);
+    ```
+
+***Saving In-Memory tables:***
+`SASHDAT engine`: 
+* Stores a permanent copy of in-memory data
+* Data is optimized for reloading CAS
+* Supports rapid parallel loading
+
+`.sashdat file` - is a permanent copy of an  in-memory table tat can be quickly loaded into memory in the future.
+* when you whant to remove the table from memory it allows to save the data 
+
+**Syntax:**
+```
+    PROC CASUTIL;
+        SAVE CASDATA="filename"
+                     <INCASLIB="caslib"> < OUTCASLIB="caslib">
+                     <CASOUT="target-table-name">
+                     <EXPORTOPTIONS={export-options}>;
+        QUIT;      
+```
+
+`PROC CASUTIL SAVE statement` - can create various file types, including SASHDAT files
+
+`EXPORTOPTIONS` -specify the file type
+* If you don't provide a file extension, a .sashdat file is created by default.
+
+**Exemple:**
+```
+proc casutil;
+    save casdata="employees" incaslib="casuser" outcaslib="casuser"
+	      casout="emps_hd";
+    list files;
+quit
+```
+
+`LIST FILES statement` -  view the data files in the Casuser caslib
