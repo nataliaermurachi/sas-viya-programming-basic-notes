@@ -442,3 +442,187 @@ quit
 ```
 
 `LIST FILES statement` -  view the data files in the Casuser caslib
+
+*It's a good practice to drop tables from memory if you're not actively using them:
+*
+
+**Syntax:**
+
+```
+PROC CASUTIL;
+    DROPTABLE CASDATA="table-name"
+        <INCASLIB="caslib"> <QUIET>;
+QUIT;
+```
+---
+
+`PROC CASUTIL SAVE statement` - remove tables from memory
+
+`QUIET option` - suppresses error messages 
+
+***DATA Step Processing in CAS:***
+
+* A **DATA** step can run on either:
+    * the SAS Compute Server - ***single-threaded***
+     * **single-threaded** - on either servers reads data sequentially, one row at a time
+    * CAS - 
+     * ***single-threaded*** or 
+     * ***multi-threaded*** - enables data to be processed simustaneously on multiple **threads**:
+            * receive different amounts of data
+            * complete processing and return results to the server controller at different times 
+            * the default option
+    * ***NOTE:*** To run data step in a single-thread you can use `single=yes` option in *data* step
+```
+DATA caslib.cas-table-name / <SINGLE=yes>;
+    SET caslib.cas-table-name;
+    ...
+RUN;
+```
+
+***Using BY statement***
+* In *SAS9* or *SAS Compute Server*, you must sort the data before using these DATA step features
+* In *CAS*, when a BY statement is used, data is distributed to threads based on the values of the by variable(or variables). So -> *No sorting is required!*
+    * The rows are returned to the controller in the order in which the threads finish processing
+
+    ```
+    DATA caslib.cas-table-name;
+       SET caslib.cas-table-name;
+       BY BY-variable;
+        …
+    RUN;
+    ```
+
+***Restrictions:***
+* first BY variable controls data distribution
+* each thread sorts its row based on additional BY variables
+* SAS Viya 3.5 and later support the DESCENDING option for *all but the first BY variable*
+* results are not returned in a sorted sequence
+
+
+***Several filtering options are supported in CAS:***
+* **WHERE=** data set option on the *input* table
+    * The **WHERE=** data set option is NOT supported on the *output* table
+* **WHERE** statement
+* **subseting IF** statement
+
+**Other exceptions:**
+* **infile**, **input**, **datalines** statements will run on the Compute Server and the output is transferred to an in-memory table in CAS
+* SAS Viya doesn't allow updating rows of an in-memory table with: **modify**, **replace**, **remove**, respectively they are not supported in CAS
+    * Use **modify**, **replace**, **remove** statements to update the SAS dataset on the Compute Server and then load to memory
+* Not all functions are supported in CAS: [Formats in CAS documentation](https://documentation.sas.com/doc/en/pgmsascdc/9.4_3.2/leforinforref/n0p2fmevfgj470n17h4k9f27qjag.html)
+```
+SAS Formats
+Data Value	Compute Server Format	Formatted Value	CAS     Alternative
+22036	    WORDDATE.	            May 1, 2020	                NLDATE.
+2.5	        WORDS30.	            two and fifty hundredths	none
+2.5	        WORDF20.	            two and 50/100          	none
+```
+
+---
+
+> **NOTE** To control the level of detail in log messages use `OPTIONS MSGLEVEL=N | I;`
+* `MSGLEVEL=N` - provides default notes
+* `MSGLEVEL=I` - includes additional notes that might provide insight into how your code was processed
+    * Example, the note *"The WHERE data set option on the DATA statement is not supported with DATA step in Cloud Analytic Services."*
+
+***Comparing Proc SQL with Proc FedSQL***
+
+* **PROC SQL:**
+    * single threaded
+    * runs only on SAS Compute Server
+    * multi-threaded for sorting and indexing
+    * is a SAS proprietary implementation of ANSI SQL-1992
+    * processes only CHAR and DOUBLE data type
+    * includes many non-ANSI SAS enhancements
+    * you can use mnemonics (NE, EQ, GT, LT, etc)
+    * use CALCULATED keyword 
+    * Allow REMERGE
+
+* **PROC FEDSQL:**
+    * fully multi-threaded
+    * executes in CAS
+    * is a SAS proprietary implementation of ANSI SQL-1999
+    * processes 17 ANSI data types
+    * includes very few non-ANSI SAS enhancements
+    * processes natively in CAS
+    * must use only operators (no mnemonics) - <>, =, >, <, etc
+    * must to specify expressions (*NO CALCULATED keyword*)
+    * doens't allow REMERGING, you have to use alternate method
+    * *SYNTAX:*
+    * 
+    ```
+    PROC FEDSQL SESSREF=cas-session-name;
+        SELECT col-name, col-name
+            FROM cas-table
+            WHERE expression
+            GROUP BY item-name
+            HAVING col-name
+            ORDER BY item-name;
+        QUIT;
+    ```
+
+* *Not all PROC FEDSQL SELECT statements features are supported in CAS*
+    * **X** FORMAT= AND **X** LABEL=
+    * **X** SET operations
+    * **X** Correlated subqueries
+    * **X** Views
+    * **X** Dictionary table queries 
+    * **X** CREATE TABLE with ORDER BY
+
+**Fully supported statements:**
+* `CREATE TABLE table-name AS query expression`
+*  `SELECT`
+* `DROP TABLE`
+
+* > The ALTERTABLE statement is an efficient way to **update tables and column metadata** for an in-memory table:
+    ```
+    PROC CASUTIL;
+            ALTERTABLE CASDATA="table" INCASLIB="caslib"
+                                    COLUMNS={{NAME="column1" <options>}
+                                    <,{NAME="column2" <options>}>};
+    QUIT;
+
+    Column options include:
+        FORMAT="format-name"
+        LABEL="label"
+        RENAME="col-name"
+        DROP=TRUE | FALSE
+    ```
+    * *CASDATA= option* - names the table
+    * *INCASLIB= option* - specifies the caslib name
+    * *COLUMNS= option* - enables you to apply formats and labels, and to rename and drop columns
+* > ALTERTABLE statement can be used to modify table attributes:
+```
+ALTERTABLE CASDATA="table" INCASLIB="caslib"
+    <COLUMNORDER={"col1" <, "col-n">}>
+    <DROP={"col1" <, "col-n">}>
+    <KEEP={"col1" <, "col-n">}>;
+```
+
+---
+
+***Column Data Types supported by CAS***
+* *Character Types:*
+    * **CHAR** - fixed-length based on number of bytes
+     * Some characters require 2 or more bytes of storage
+     * If the string exceeds the number of bytes it is truncated
+     * Extra bytes are padded with spaces 
+     * CHAR columns are usu
+    * **VARCHAR** - varying-length string based on the number of characters 
+     * Values will take only the necessary bytes without padding with spaces
+     * `VARCHAR(n)` - values will not exceed the specified length
+     * `VARCHAR(*)` - there is no limits on maximum length(there is but veryyy large)
+        ```
+        Declare a varchar column syntax:
+        LENGTH column-name VARCHAR(n|*);
+        ```
+* *Numeric Types:*
+    * **DOUBLE** - double-precision, floating-point number 
+     * stored as 8 bytes
+    * **INT32** - integer with a precision of 10 digits
+     * stored as a 4 bytes
+    * **INT64** - integer with a precision of 19 digits
+     * stored as a 8 bytes
+* *Other ANSI-compliant data types are automatically mapped to the appropriate CAS data type*
+    * ex: ANSI standard types *INT* - SAS standart *INT32* 
+    * ex: ANSI standard types *BIGINT* - SAS standart *INT64*
