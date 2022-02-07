@@ -386,14 +386,14 @@ There are two ways:
     * data can be loaded directly into memory
     * some connectors do parallel loads, resulting in faster load time
 
-    ```
+```
     CASLIB caslib-name DATASOURCE=
           (SRCTYPE="oracle",
            PATH="oracleServiceName",
            SCHEMA="oracleSchemaName",
            UID="oracleUserID",
            PWD="oraclePassword" <,...>);
-    ```
+```
 
     * `CASLIB` - specifies the caslib name
     * `DATASOURCE` - specifies the source type, path, schema, userID and password:
@@ -443,6 +443,7 @@ quit
 
 `LIST FILES statement` -  view the data files in the Casuser caslib
 
+
 *It's a good practice to drop tables from memory if you're not actively using them:
 *
 
@@ -454,16 +455,20 @@ PROC CASUTIL;
         <INCASLIB="caslib"> <QUIET>;
 QUIT;
 ```
----
+
 
 `PROC CASUTIL SAVE statement` - remove tables from memory
 
 `QUIET option` - suppresses error messages 
 
+
+--- 
+
+
 ***DATA Step Processing in CAS:***
 
 * A **DATA** step can run on either:
-    * the SAS Compute Server - ***single-threaded***
+    * the SAS Compute Server - 
      * **single-threaded** - on either servers reads data sequentially, one row at a time
     * CAS - 
      * ***single-threaded*** or 
@@ -604,25 +609,25 @@ ALTERTABLE CASDATA="table" INCASLIB="caslib"
 ***Column Data Types supported by CAS***
 * *Character Types:*
     * **CHAR** - fixed-length based on number of bytes
-     * Some characters require 2 or more bytes of storage
-     * If the string exceeds the number of bytes it is truncated
-     * Extra bytes are padded with spaces 
-     * CHAR columns are usu
+     	* Some characters require 2 or more bytes of storage
+     	* If the string exceeds the number of bytes it is truncated
+     	* Extra bytes are padded with spaces 
+     	* CHAR columns are usu
     * **VARCHAR** - varying-length string based on the number of characters 
-     * Values will take only the necessary bytes without padding with spaces
-     * `VARCHAR(n)` - values will not exceed the specified length
-     * `VARCHAR(*)` - there is no limits on maximum length(there is but veryyy large)
+     	* Values will take only the necessary bytes without padding with spaces
+     	* `VARCHAR(n)` - values will not exceed the specified length
+     	* `VARCHAR(*)` - there is no limits on maximum length(there is but veryyy large)
         ```
         Declare a varchar column syntax:
         LENGTH column-name VARCHAR(n|*);
         ```
 * *Numeric Types:*
     * **DOUBLE** - double-precision, floating-point number 
-     * stored as 8 bytes
+     	* stored as 8 bytes
     * **INT32** - integer with a precision of 10 digits
-     * stored as a 4 bytes
+     	* stored as a 4 bytes
     * **INT64** - integer with a precision of 19 digits
-     * stored as a 8 bytes
+     	* stored as a 8 bytes
 * *Other ANSI-compliant data types are automatically mapped to the appropriate CAS data type*
     * ex: ANSI standard types *INT* - SAS standart *INT32* 
     * ex: ANSI standard types *BIGINT* - SAS standart *INT64*
