@@ -71,29 +71,6 @@ Often, only very minor code modifications are required in order for programs to 
 
 ---
 
-***The CAS Language and CAS Actions:***
-
-> CASL is a scripting native CAS language that's used to call CAS actions:
-* an action performs a single task
-* CAS actions are grouped into action sets 
-* action sets are based on common functionality. 
-* use `action-set.action`:
-
-Types of actions:
-* the table action set:
-    * loading a table - `table.loadTable ...;`
-    * getting information about a table `table.tableInfo;`
-    * modifying table attributes `table.attribute;`
-    * dropping a table. `table.dropTable;`
-
-* actions to:
-    * compute summary statistics- `simple.summary...;`
-    * run DATA step code - `dataStep.runCode ...;`
-    * transform data
-    * perform analytics - 
-    
-> The CAS language and CAS actions execute only in CAS. They don't execute on the Compute Server.
-
 ***Parallel Processing in CAS***
 `Client <-> Controller -- worker -- worker -- worker `
 
@@ -631,3 +608,132 @@ ALTERTABLE CASDATA="table" INCASLIB="caslib"
 * *Other ANSI-compliant data types are automatically mapped to the appropriate CAS data type*
     * ex: ANSI standard types *INT* - SAS standart *INT32* 
     * ex: ANSI standard types *BIGINT* - SAS standart *INT64*
+
+---
+
+***The CAS Language and CAS Actions:***
+
+> ***CASL CAS Language*** ia a scripting language used to interact directly with CAS
+
+### Methods to submit CASL code:
+1) generated behind the scenes from SAS Viya visual applications(ex: SAS Visual Analytics, SAS Data Studio)
+2) from open source programming environments like Java, Python, R or Lua
+3) from REST APIs
+4) from your SAS programs, most common written in SAS Studio
+
+*CAS-enabled steps are converted to CASL behind the scenes*:
+`CAS-enabled steps --> CASL --> run in CAS`
+
+### You can write your own code to invoke *CAS Actions*
+
+> ***CAS actions*** are executable routines that performs a single task on the CAS server
+
+There are actions to:
+* **Menage Session**
+* **Data Management**
+* **Process Data**
+* **Analyze Data**
+* **Admin Tasks**
+
+### Actions are organized into groups called: **CAS action sets**
+`actionSet.action`
+* ***CAS Action Set:***
+    * **table** :
+        * *table.loadTable*
+        * *table.tableDetails*
+        * *table.fileInfo*
+* Use **PROC CAS** to submit actions directly to the CAS server:
+    ```
+    PROC CAS;
+           action-set.action-name / parameter=value, parameter=value...;
+    QUIT;
+
+    exemple:
+    proc cas;
+        table.tableInfo / caslib="casuser";
+    quit; 
+    ```
+
+### Advantages of using CASL:
+* Speak the native language of the CAS Server
+* Submit only the actions that you need 
+* Take advantage of actions and parameters not available in CAS-enabled steps
+
+***Loading Data to Memory using CAS actions:***
+1) See the data source files available in caslib:
+```
+CASL:
+*******
+PROC CAS;
+    table.fileInfo / caslib="caslib-name";
+QUIT;
+
+Base SAS:
+*******
+proc casutil;
+    list files incaslib="casuser";
+quit;
+```
+
+2) ***Load a table into memory:***
+```
+PROC CAS;
+    table.loadTable /
+        path="string", caslib="caslib-name",
+        casout={caslib="string", name="table-name", ...},
+        <where="where-expression",>    
+        <vars={"var-1"<, "var-2", ...>},> 
+        ...;
+QUIT;
+```
+
+3) ***Explore data , information about columns and values in our in-memory tables***
+* **table.columnInfo** -> attributes: *column*, *label*, *ID*, *type*
+```
+CASL:
+*******
+proc cas;
+    table.columnInfo / table={name="sales", caslib="casuser"};
+quit;
+
+Base SAS:
+********
+proc contents...;
+```
+* **table.fetch** -> allow to examine the first few rows, it fetches and prints rows from a table , by default 20 rows are printed
+```
+CASL:
+*******
+proc cas;
+	table.fetch / table={name="sales", caslib="casuser"} to=10;
+quit;
+
+Base SAS:
+********
+proc print...;
+```
+
+***The Simple Analytics action set*** - provides actions for performing basic analytic functions. The name of the action set is **simple**. A few examples are:
+* *simple.numrows*
+* *simple.freq*
+* *simple.distinct* - computes the number of distinct values for one or more input columns
+    * *input* - can specifies the columns to analyze
+```
+proc cas;
+    simple.distinct / table={name="sales", caslib="casuser"};
+    input={"Job Title", "Country"};
+quit;
+```
+* *simple.summary* - generates descriptive statistics for numeric columns, including mean, sum, variance, N and more.
+```
+PROC CAS;
+    simple.summary /
+        table={name="table-name", caslib="caslib-name", groupby="col-name"},
+        input={"col-name"}; 
+        subset={"MIN", "MAX", "N", "MEAN"}
+        casOut={name="table-name", caslib="caslib-name", replace= "true"}; 
+QUIT;
+```
+* *groupBy* - compute statistics for each unique value of one ore more columns
+* *subset* - list the statistics to include in the results
+* *casOut* - creates a in-memory table in which to store the summary statistics
